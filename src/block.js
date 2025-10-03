@@ -5,7 +5,8 @@ class Block {
   constructor(data) {
     this.hash = null;
     this.height = 0;
-    this.body = Buffer.from(JSON.stringify(data).toString("hex"));
+    // Corrección: Encoding correcto del body
+    this.body = Buffer.from(JSON.stringify(data)).toString("hex");
     this.time = 0;
     this.previousBlockHash = null;
   }
@@ -13,30 +14,47 @@ class Block {
   validate() {
     const self = this;
     return new Promise((resolve, reject) => {
-      let currentHash = self.hash;
+      try {
+        // Guardar el hash actual
+        const currentHash = self.hash;
+        
+        // Recalcular el hash sin incluir el hash actual
+        const recalculatedHash = SHA256(JSON.stringify({
+          height: self.height,
+          body: self.body,
+          time: self.time,
+          previousBlockHash: self.previousBlockHash
+        })).toString();
 
-      self.hash = SHA256(JSON.stringify({ ...self, hash: null })).toString();
+        // Comparar hashes
+        if (currentHash !== recalculatedHash) {
+          return resolve(false);
+        }
 
-      if (currentHash !== self.hash) {
-        return resolve(false);
+        resolve(true);
+      } catch (error) {
+        reject(error);
       }
-
-      resolve(true);
     });
   }
 
   getBlockData() {
     const self = this;
     return new Promise((resolve, reject) => {
-      let encodedData = self.body;
-      let decodedData = hex2ascii(encodedData);
-      let dataObject = JSON.parse(decodedData);
+      try {
+        // Decodificar el body de hex a string
+        let decodedData = hex2ascii(self.body);
+        let dataObject = JSON.parse(decodedData);
 
-      if (dataObject === "Genesis Block") {
-        reject(new Error("This is the Genesis Block"));
+        // Verificar si es el bloque génesis
+        if (dataObject.data && dataObject.data === "Genesis Block") {
+          return reject(new Error("This is the Genesis Block"));
+        }
+
+        resolve(dataObject);
+      } catch (error) {
+        reject(error);
       }
-
-      resolve(dataObject);
     });
   }
 
